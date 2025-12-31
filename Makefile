@@ -23,3 +23,6 @@ checks: tidy fmt lint test
 
 benchmark:
 	go test -bench=. -run=^$ ./...
+
+doc:
+	go doc -all .
