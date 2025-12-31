@@ -12,3 +12,9 @@ fmt:
 
 lint:
 	go vet ./...
+
+test:
+	go test ./...
+
+benchmark:
+	go test -bench=. -run=^$ ./...
