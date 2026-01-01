@@ -11,5 +11,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	os.Stdout.WriteString(Convert(string(input)))
+	_, err = os.Stdout.WriteString(Convert(string(input)))
+	if err != nil {
+		log.Fatal(err)
+	}
 }
