@@ -29,6 +29,22 @@
 //   - DensityScore: (textLength - linkTextLength) / textLength * textLength / 100
 //   - ParagraphBonus: +3 per <p> element
 //   - PunctuationBonus: +1 per comma/、 (max 10), indicates prose content
+//
+// # Scoring Rationale
+//
+// The base unit of 25 points ("strong signal") creates clear separation:
+//   - An article tag (+25) beats 4 generic divs (+20) but loses to 5 with content
+//   - Pattern matching (+25) can elevate a div to article-level importance
+//   - Negative tags (-25) can be overcome by sufficient positive signals
+//
+// The density score rewards elements with high non-link text content:
+//   - 1000 chars with 0 link chars: density=1.0, score=+10
+//   - 1000 chars with 500 link chars: density=0.5, score=+5
+//   - 1000 chars with 1000 link chars: density=0, score=0 (navigation menu)
+//
+// This allows the algorithm to trust semantic tags when present,
+// fall back to heuristics when semantics are absent, and avoid
+// false positives from navigation-heavy containers.
 package main
 
 import (
@@ -37,6 +53,45 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+)
+
+// Scoring constants derived from Mozilla Readability algorithm.
+//
+// The base unit of 25 points ("strong signal") creates clear separation:
+//   - An article tag (+25) beats 4 generic divs (+20)
+//   - Pattern matching (+25) can elevate a div to article-level importance
+//   - Negative tags (-25) can be overcome by sufficient content signals
+//
+// This allows the algorithm to trust semantic tags when present,
+// fall back to heuristics when semantics are absent, and avoid
+// false positives from navigation-heavy containers.
+const (
+	// scoreStrongSignal is the base unit for high-confidence content signals.
+	// Used for semantic content tags (article, main) and pattern matches.
+	scoreStrongSignal = 25.0
+
+	// scoreMediumSignal indicates moderate content likelihood.
+	// Section tags get this score: less specific than article but
+	// more meaningful than generic div.
+	scoreMediumSignal = 10.0
+
+	// scoreWeakSignal indicates low but positive content signal.
+	// Generic divs get this score as they may contain content
+	// but lack semantic meaning.
+	scoreWeakSignal = 5.0
+
+	// scoreParagraphBonus rewards each <p> element.
+	// Value of 3 allows 8+ paragraphs to compete with a single strong signal.
+	scoreParagraphBonus = 3.0
+
+	// scoreCommaMax caps the punctuation bonus.
+	// More than 10 commas doesn't add confidence.
+	scoreCommaMax = 10
+
+	// densityDivisor normalizes text length to a reasonable score range.
+	// Dividing by 100 means 1000 chars of pure text = 10 points,
+	// keeping density scores comparable to tag-based signals.
+	densityDivisor = 100.0
 )
 
 // Pattern matching for class/id attribute scoring.
@@ -67,16 +122,16 @@ var (
 // Non-content tags receive negative scores:
 //   - header, footer, nav, aside, form: -25 (typically contain navigation, metadata, or forms)
 var tagScores = map[string]float64{
-	"article": 25,
-	"main":    25,
-	"section": 10,
-	"div":     5,
-	"p":       3,
-	"header":  -25,
-	"footer":  -25,
-	"nav":     -25,
-	"aside":   -25,
-	"form":    -25,
+	"article": scoreStrongSignal,
+	"main":    scoreStrongSignal,
+	"section": scoreMediumSignal,
+	"div":     scoreWeakSignal,
+	"p":       scoreParagraphBonus,
+	"header":  -scoreStrongSignal,
+	"footer":  -scoreStrongSignal,
+	"nav":     -scoreStrongSignal,
+	"aside":   -scoreStrongSignal,
+	"form":    -scoreStrongSignal,
 }
 
 // Tags to remove during preprocessing.
@@ -291,10 +346,10 @@ func scoreNode(n *html.Node) float64 {
 	combined := className + " " + id
 
 	if positivePattern.MatchString(combined) {
-		score += 25
+		score += scoreStrongSignal
 	}
 	if negativePattern.MatchString(combined) {
-		score -= 25
+		score -= scoreStrongSignal
 	}
 
 	// Get text content once for multiple calculations
@@ -308,16 +363,16 @@ func scoreNode(n *html.Node) float64 {
 
 	if textLen > 0 {
 		density := float64(textLen-linkTextLen) / float64(textLen)
-		score += density * float64(textLen) / 100
+		score += density * float64(textLen) / densityDivisor
 	}
 
 	// Paragraph bonus
 	pCount := countElements(n, "p")
-	score += float64(pCount) * 3
+	score += float64(pCount) * scoreParagraphBonus
 
 	// Punctuation bonus (indicates prose)
 	// Counts both standard comma (,) and Japanese comma (、)
-	punctuationCount := min(strings.Count(text, ",")+strings.Count(text, "、"), 10)
+	punctuationCount := min(strings.Count(text, ",")+strings.Count(text, "、"), scoreCommaMax)
 	score += float64(punctuationCount)
 
 	return score
@@ -349,18 +404,13 @@ func getTextContent(n *html.Node) string {
 	return buf.String()
 }
 
-// getTextLength returns the total length of text content.
-func getTextLength(n *html.Node) int {
-	return len(strings.TrimSpace(getTextContent(n)))
-}
-
 // getLinkTextLength returns the total length of text within <a> tags.
 func getLinkTextLength(n *html.Node) int {
 	var total int
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
 		if node.Type == html.ElementNode && node.Data == "a" {
-			total += getTextLength(node)
+			total += len(strings.TrimSpace(getTextContent(node)))
 			return // Don't recurse into links
 		}
 		for c := node.FirstChild; c != nil; c = c.NextSibling {
