@@ -288,6 +288,8 @@ func scoreNode(n *html.Node) float64 {
 	}
 
 	// Text density score
+	// When all text is within links (textLen == linkTextLen), density becomes 0,
+	// which correctly penalizes navigation-heavy elements.
 	textLen := getTextLength(n)
 	linkTextLen := getLinkTextLength(n)
 
@@ -300,12 +302,11 @@ func scoreNode(n *html.Node) float64 {
 	pCount := countElements(n, "p")
 	score += float64(pCount) * 3
 
-	// Comma bonus (indicates prose)
+	// Punctuation bonus (indicates prose)
+	// Counts both standard comma (,) and Japanese comma (、)
 	text := getTextContent(n)
-	commaCount := min(
-		// Include Japanese comma
-		strings.Count(text, ",")+strings.Count(text, "\u3001"), 10)
-	score += float64(commaCount)
+	punctuationCount := min(strings.Count(text, ",")+strings.Count(text, "、"), 10)
+	score += float64(punctuationCount)
 
 	return score
 }

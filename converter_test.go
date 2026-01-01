@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -186,6 +187,77 @@ This is **bold** and *italic*.`,
 			got := Convert(tt.args.html)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("Convert() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// TestConvert_WithContentExtraction tests the integration of ExtractContent
+// with Convert using full HTML documents that include navigation, footers,
+// and other non-content elements.
+func TestConvert_WithContentExtraction(t *testing.T) {
+	tests := []struct {
+		name         string
+		html         string
+		wantContains []string
+		wantExcludes []string
+	}{
+		{
+			name: "extracts article and converts to markdown",
+			html: `<html><body>
+				<nav><a href="#">Menu</a><a href="#">About</a></nav>
+				<article>
+					<h1>Article Title</h1>
+					<p>This is the main content.</p>
+				</article>
+				<footer>Copyright 2026</footer>
+			</body></html>`,
+			wantContains: []string{"# Article Title", "main content"},
+			wantExcludes: []string{"Menu", "About", "Copyright"},
+		},
+		{
+			name: "converts links within extracted content",
+			html: `<html><body>
+				<aside><a href="/ad">Advertisement</a></aside>
+				<main>
+					<p>Visit <a href="https://example.com">Example</a> for more info.</p>
+				</main>
+			</body></html>`,
+			wantContains: []string{"[Example](https://example.com)"},
+			wantExcludes: []string{"Advertisement"},
+		},
+		{
+			name: "converts lists within extracted content",
+			html: `<html><body>
+				<header><h1>Site Title</h1></header>
+				<article>
+					<h2>Features</h2>
+					<ul>
+						<li>Feature 1</li>
+						<li>Feature 2</li>
+					</ul>
+				</article>
+				<footer>Footer content</footer>
+			</body></html>`,
+			wantContains: []string{"## Features", "- Feature 1", "- Feature 2"},
+			wantExcludes: []string{"Site Title", "Footer content"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Convert(tt.html)
+
+			for _, want := range tt.wantContains {
+				if !strings.Contains(got, want) {
+					t.Errorf("Convert() should contain %q, got:\n%s", want, got)
+				}
+			}
+
+			for _, exclude := range tt.wantExcludes {
+				if strings.Contains(got, exclude) {
+					t.Errorf("Convert() should NOT contain %q, got:\n%s", exclude, got)
+				}
 			}
 		})
 	}
