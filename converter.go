@@ -15,6 +15,16 @@
 // Postconditions:
 //   - Output is valid Markdown text
 //   - Unsupported HTML tags are stripped from output
+//
+// # Conversion Order Rationale
+//
+// Block elements are processed before inline elements because:
+//  1. Block elements define document structure (paragraphs, lists, tables)
+//  2. Inline elements within blocks must be preserved during block conversion
+//  3. HTML tag cleanup happens last to avoid breaking generated markdown syntax
+//
+// Headings are processed from h6 to h1 because:
+//   - Prevents <h1><h2>nested</h2></h1> from matching h1 first and losing h2
 package main
 
 import (
@@ -23,8 +33,24 @@ import (
 	"strings"
 )
 
+// Escape sequences for preserving angle brackets in inline code.
+// These placeholder strings survive HTML tag cleanup and are restored afterward.
+// Using null bytes ensures these sequences never appear in normal HTML content.
+const (
+	escLT = "\x00LT\x00" // Placeholder for < in inline code
+	escGT = "\x00GT\x00" // Placeholder for > in inline code
+)
+
 // Precompiled regex patterns for HTML element matching.
 // These are compiled once at package initialization for performance.
+//
+// Regex flag meanings:
+//   - (?i)  = case-insensitive (HTML tags are case-insensitive per spec)
+//   - (?s)  = dotall - dot matches newlines (for multi-line content)
+//   - (?is) = both flags combined
+//
+// Single-line elements (headings, hr, br, img) use (?i) only.
+// Multi-line elements (blockquote, pre, table, lists) use (?is).
 var (
 	reWhitespace   = regexp.MustCompile(`[ \t]+`)
 	reH1           = regexp.MustCompile(`(?i)<h1[^>]*>(.*?)</h1>`)
@@ -57,6 +83,22 @@ var (
 	reHtmlTag      = regexp.MustCompile(`<[^>]*>`)
 	reMultiNewline = regexp.MustCompile(`\n{3,}`)
 )
+
+// headingDefs defines the mapping from HTML heading levels to Markdown prefixes.
+// Processed from h6 to h1 to handle nested headings correctly:
+// e.g., <h1><h2>nested</h2></h1> - processing h6 first prevents h1 from
+// matching and losing the inner h2 content.
+var headingDefs = []struct {
+	re     *regexp.Regexp
+	prefix string
+}{
+	{reH6, "###### "},
+	{reH5, "##### "},
+	{reH4, "#### "},
+	{reH3, "### "},
+	{reH2, "## "},
+	{reH1, "# "},
+}
 
 // htmlEntityReplacer decodes common HTML entities efficiently.
 // Using strings.NewReplacer is faster than map iteration with ReplaceAll.
@@ -148,18 +190,7 @@ func normalizeWhitespace(s string) string {
 //   - Each heading is surrounded by blank lines
 //   - Inner content is trimmed of whitespace
 func convertHeadings(s string) string {
-	headings := []struct {
-		re     *regexp.Regexp
-		prefix string
-	}{
-		{reH6, "###### "},
-		{reH5, "##### "},
-		{reH4, "#### "},
-		{reH3, "### "},
-		{reH2, "## "},
-		{reH1, "# "},
-	}
-	for _, h := range headings {
+	for _, h := range headingDefs {
 		s = h.re.ReplaceAllStringFunc(s, func(match string) string {
 			inner := h.re.FindStringSubmatch(match)[1]
 			inner = strings.TrimSpace(inner)
@@ -523,8 +554,8 @@ func convertInlineCode(s string) string {
 		inner := reInlineCode.FindStringSubmatch(match)[1]
 		inner = decodeHTMLEntities(inner)
 		// Escape any remaining angle brackets to prevent cleanup from removing them
-		inner = strings.ReplaceAll(inner, "<", "\x00LT\x00")
-		inner = strings.ReplaceAll(inner, ">", "\x00GT\x00")
+		inner = strings.ReplaceAll(inner, "<", escLT)
+		inner = strings.ReplaceAll(inner, ">", escGT)
 		return "`" + inner + "`"
 	})
 }
@@ -578,8 +609,8 @@ func cleanupOutput(s string) string {
 	s = reHtmlTag.ReplaceAllString(s, "")
 
 	// Restore escaped angle brackets in code
-	s = strings.ReplaceAll(s, "\x00LT\x00", "<")
-	s = strings.ReplaceAll(s, "\x00GT\x00", ">")
+	s = strings.ReplaceAll(s, escLT, "<")
+	s = strings.ReplaceAll(s, escGT, ">")
 
 	// Decode remaining entities
 	s = decodeHTMLEntities(s)

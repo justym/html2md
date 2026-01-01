@@ -22,7 +22,7 @@ func generateMediumHTML() string {
 		<nav><a href="#">Home</a><a href="#">About</a><a href="#">Contact</a></nav>
 		<article class="content">
 			<h1>Article Title</h1>`)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		sb.WriteString(fmt.Sprintf(`
 			<p>This is paragraph %d with some content. It contains multiple sentences to simulate real article text, including commas, periods, and other punctuation marks.</p>`, i))
 	}
@@ -40,7 +40,7 @@ func generateLargeHTML() string {
 	sb.WriteString(`<html><body>
 		<header>
 			<nav>`)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		sb.WriteString(fmt.Sprintf(`<a href="/page%d">Link %d</a>`, i, i))
 	}
 	sb.WriteString(`</nav>
@@ -48,7 +48,7 @@ func generateLargeHTML() string {
 		<main>
 			<article class="post">
 				<h1>Main Article Title</h1>`)
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		sb.WriteString(fmt.Sprintf(`
 				<p>This is paragraph number %d in the article. It contains substantial text content with various punctuation marks, including commas, semicolons; and other characters. The goal is to simulate a real-world article with meaningful content density.</p>`, i))
 	}
@@ -56,13 +56,13 @@ func generateLargeHTML() string {
 			</article>
 		</main>
 		<aside class="sidebar">`)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		sb.WriteString(fmt.Sprintf(`<div class="widget"><h3>Widget %d</h3><p>Widget content</p></div>`, i))
 	}
 	sb.WriteString(`</aside>
 		<footer>
 			<nav>`)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		sb.WriteString(fmt.Sprintf(`<a href="/footer%d">Footer Link %d</a>`, i, i))
 	}
 	sb.WriteString(`</nav>
@@ -74,21 +74,21 @@ func generateLargeHTML() string {
 
 // BenchmarkExtractContent_Small benchmarks ExtractContent with small HTML.
 func BenchmarkExtractContent_Small(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ExtractContent(smallHTML)
 	}
 }
 
 // BenchmarkExtractContent_Medium benchmarks ExtractContent with medium HTML.
 func BenchmarkExtractContent_Medium(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ExtractContent(mediumHTML)
 	}
 }
 
 // BenchmarkExtractContent_Large benchmarks ExtractContent with large HTML.
 func BenchmarkExtractContent_Large(b *testing.B) {
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		ExtractContent(largeHTML)
 	}
 }
@@ -99,8 +99,7 @@ func BenchmarkScoreNode(b *testing.B) {
 	body := findElement(doc, "body")
 	article := findElement(body, "article")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		scoreNode(article)
 	}
 }
@@ -111,8 +110,7 @@ func BenchmarkGetTextContent(b *testing.B) {
 	body := findElement(doc, "body")
 	article := findElement(body, "article")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		getTextContent(article)
 	}
 }
@@ -126,7 +124,7 @@ func BenchmarkRemoveUnwantedElements(b *testing.B) {
 		<div hidden>Hidden</div>
 	</body></html>`
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		b.StopTimer()
 		doc, _ := html.Parse(strings.NewReader(htmlWithScripts))
 		b.StartTimer()
@@ -143,8 +141,7 @@ func BenchmarkGetLinkTextLength(b *testing.B) {
 	doc, _ := html.Parse(strings.NewReader(htmlWithLinks))
 	div := findElement(doc, "div")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		getLinkTextLength(div)
 	}
 }
@@ -154,8 +151,7 @@ func BenchmarkCountElements(b *testing.B) {
 	doc, _ := html.Parse(strings.NewReader(largeHTML))
 	body := findElement(doc, "body")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		countElements(body, "p")
 	}
 }
@@ -166,8 +162,7 @@ func BenchmarkFindBestCandidate(b *testing.B) {
 	removeUnwantedElements(doc)
 	body := findElement(doc, "body")
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		findBestCandidate(body)
 	}
 }
