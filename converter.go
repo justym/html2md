@@ -78,6 +78,9 @@ var (
 //   - Unrecognized HTML tags are removed from output
 //   - Multiple consecutive newlines are normalized to at most two
 func Convert(html string) string {
+	// Extract main content first
+	html = ExtractContent(html)
+
 	// Normalize whitespace and newlines
 	html = normalizeWhitespace(html)
 
