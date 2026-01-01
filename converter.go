@@ -58,6 +58,18 @@ var (
 	reMultiNewline = regexp.MustCompile(`\n{3,}`)
 )
 
+// htmlEntityReplacer decodes common HTML entities efficiently.
+// Using strings.NewReplacer is faster than map iteration with ReplaceAll.
+var htmlEntityReplacer = strings.NewReplacer(
+	"&lt;", "<",
+	"&gt;", ">",
+	"&amp;", "&",
+	"&quot;", "\"",
+	"&#39;", "'",
+	"&apos;", "'",
+	"&nbsp;", " ",
+)
+
 // Convert transforms an HTML string into Markdown format.
 //
 // It processes block elements (headings, paragraphs, lists, tables, code blocks)
@@ -543,19 +555,7 @@ func convertLineBreaks(s string) string {
 // Postconditions:
 //   - &lt; &gt; &amp; &quot; &#39; &apos; &nbsp; are decoded
 func decodeHTMLEntities(s string) string {
-	replacements := map[string]string{
-		"&lt;":   "<",
-		"&gt;":   ">",
-		"&amp;":  "&",
-		"&quot;": "\"",
-		"&#39;":  "'",
-		"&apos;": "'",
-		"&nbsp;": " ",
-	}
-	for entity, char := range replacements {
-		s = strings.ReplaceAll(s, entity, char)
-	}
-	return s
+	return htmlEntityReplacer.Replace(s)
 }
 
 // cleanupOutput performs final cleanup on the converted Markdown output.
@@ -589,16 +589,20 @@ func cleanupOutput(s string) string {
 
 	// Remove trailing whitespace from lines, but preserve markdown line breaks (two spaces before newline)
 	lines := strings.Split(s, "\n")
+	var sb strings.Builder
+	sb.Grow(len(s))
 	for i, line := range lines {
+		if i > 0 {
+			sb.WriteByte('\n')
+		}
 		// Check if line ends with markdown line break (two spaces)
 		if strings.HasSuffix(line, "  ") {
 			// Preserve the two trailing spaces, trim any tabs
-			lines[i] = strings.TrimRight(line, "\t")
+			sb.WriteString(strings.TrimRight(line, "\t"))
 		} else {
-			lines[i] = strings.TrimRight(line, " \t")
+			sb.WriteString(strings.TrimRight(line, " \t"))
 		}
 	}
-	s = strings.Join(lines, "\n")
 
-	return s
+	return sb.String()
 }

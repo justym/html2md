@@ -1,11 +1,12 @@
 # html2md
 
-A lightweight HTML to Markdown converter written in Go using only the standard library.
+A lightweight HTML to Markdown converter written in Go.
 
 ## Features
 
-- Standard library only
-- Reads from stdin, writes to stdout 
+- Automatic content extraction (Readability-inspired algorithm)
+- Filters out navigation, sidebars, and advertisements
+- Reads from stdin, writes to stdout
 - Supports common HTML elements
 
 ## Installation
