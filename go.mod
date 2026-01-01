@@ -4,7 +4,10 @@ go 1.25.5
 
 tool golang.org/x/tools/go/analysis/passes/modernize/cmd/modernize
 
-require github.com/google/go-cmp v0.7.0
+require (
+	github.com/google/go-cmp v0.7.0
+	golang.org/x/net v0.48.0
+)
 
 require (
 	golang.org/x/mod v0.31.0 // indirect
