@@ -79,4 +79,7 @@ This is **bold** and *italic* text.
 
 ## License
 
-MIT
+MIT License. See [LICENSE](LICENSE) for details.
+
+This project includes code inspired by [Mozilla Readability](https://github.com/mozilla/readability),
+which is licensed under the Apache License 2.0. See [NOTICE](NOTICE) for details.
