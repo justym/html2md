@@ -21,14 +21,14 @@
 //
 // The total score for a node is calculated as:
 //
-//	Score = BaseScore + PatternScore + DensityScore + ParagraphBonus + CommaBonus
+//	Score = BaseScore + PatternScore + DensityScore + ParagraphBonus + PunctuationBonus
 //
 // Where:
 //   - BaseScore: Initial score based on tag name (e.g., article=+25, nav=-25)
 //   - PatternScore: ±25 based on class/id pattern matching
 //   - DensityScore: (textLength - linkTextLength) / textLength * textLength / 100
 //   - ParagraphBonus: +3 per <p> element
-//   - CommaBonus: +1 per comma (max 10), indicates prose content
+//   - PunctuationBonus: +1 per comma/、 (max 10), indicates prose content
 package main
 
 import (
@@ -86,6 +86,14 @@ var unwantedTags = map[string]bool{
 	"noscript": true,
 	"iframe":   true,
 	"svg":      true,
+}
+
+// candidateTags defines container elements that can be content candidates.
+var candidateTags = map[string]bool{
+	"article": true,
+	"main":    true,
+	"section": true,
+	"div":     true,
 }
 
 // ExtractContent extracts the main content from an HTML document.
@@ -159,9 +167,12 @@ func removeUnwantedElements(n *html.Node) {
 					toRemove = append(toRemove, node)
 					return
 				}
-				if attr.Key == "style" && strings.Contains(attr.Val, "display:none") {
-					toRemove = append(toRemove, node)
-					return
+				if attr.Key == "style" {
+					normalized := strings.ToLower(strings.ReplaceAll(attr.Val, " ", ""))
+					if strings.Contains(normalized, "display:none") {
+						toRemove = append(toRemove, node)
+						return
+					}
 				}
 			}
 		}
@@ -209,8 +220,7 @@ func findBestCandidate(body *html.Node) *html.Node {
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode {
 			// Only consider container elements
-			tag := n.Data
-			if tag == "article" || tag == "main" || tag == "section" || tag == "div" {
+			if candidateTags[n.Data] {
 				score := scoreNode(n)
 				if score > bestScore {
 					bestScore = score
@@ -287,10 +297,13 @@ func scoreNode(n *html.Node) float64 {
 		score -= 25
 	}
 
+	// Get text content once for multiple calculations
+	text := getTextContent(n)
+	textLen := len(strings.TrimSpace(text))
+
 	// Text density score
 	// When all text is within links (textLen == linkTextLen), density becomes 0,
 	// which correctly penalizes navigation-heavy elements.
-	textLen := getTextLength(n)
 	linkTextLen := getLinkTextLength(n)
 
 	if textLen > 0 {
@@ -304,7 +317,6 @@ func scoreNode(n *html.Node) float64 {
 
 	// Punctuation bonus (indicates prose)
 	// Counts both standard comma (,) and Japanese comma (、)
-	text := getTextContent(n)
 	punctuationCount := min(strings.Count(text, ",")+strings.Count(text, "、"), 10)
 	score += float64(punctuationCount)
 
